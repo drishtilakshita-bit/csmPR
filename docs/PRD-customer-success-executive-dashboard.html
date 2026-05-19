@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PRD: Customer Success Executive Dashboard</title>
+<style>
+    @page { size: A4; margin: 18mm 16mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           font-size: 10.5pt; line-height: 1.45; color: #111; }
+    h1 { font-size: 18pt; border-bottom: 2px solid #16a34a; padding-bottom: 6px; }
+    h2 { font-size: 13pt; margin-top: 1.4em; color: #14532d; }
+    h3 { font-size: 11pt; }
+    table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 9.5pt; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { background: #f4f4f5; }
+    img { max-width: 100%; height: auto; page-break-inside: avoid; }
+    pre, code { font-size: 8.5pt; }
+    pre.mermaid-fallback { background: #f8fafc; padding: 8px; border: 1px solid #e2e8f0; white-space: pre-wrap; }
+    hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.2em 0; }
+    </style>
+</head>
+<body>
+<h1>PRD: Customer Success Executive Dashboard</h1>
+<p><strong>Version:</strong> 1.1<br />
+<strong>Owner:</strong> Product &amp; Design<br />
+<strong>Audience:</strong> Engineering, Design, Analytics (Metabase), Video / Comms (explainer)<br />
+<strong>Status:</strong> Approved for build &amp; video production (pending Metabase card IDs where noted)</p>
+<hr />
+<h2>Document control</h2>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Date</th>
+<th>Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.1</td>
+<td>—</td>
+<td>Initial mocks + backlog seeds</td>
+</tr>
+<tr>
+<td>1.0</td>
+<td>—</td>
+<td>First-principles IA, resolved decisions, single-video spec, no loose ends</td>
+</tr>
+<tr>
+<td>1.1</td>
+<td>—</td>
+<td>Embedded diagram mocks per section; PDF export + render script</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>1. Executive summary</h2>
+<p>This PRD defines a <strong>Customer Success Executive</strong> experience in the existing Next.js dashboard: <strong>global filters</strong> → <strong>company snapshot (KPIs + MoM)</strong> → <strong>deal owner performance</strong> → <strong>owner drawer (account-level drivers)</strong> → <strong>Account Spotlight (single-account narrative)</strong>. All quantitative metrics are fetched from <strong>Metabase</strong>; the application owns <strong>state, layout, accessibility, and motion</strong>.</p>
+<p>A <strong>single explainer video</strong> (spec in <a href="#12-single-explainer-video-specification">Section 12</a>) walks a first-time executive through the full flow in one continuous story.</p>
+<p><strong>Visual — end-to-end flow (reference mock)</strong></p>
+<p><img alt="Executive flow: Filters → KPIs → Deal owners → Drawer → Account Spotlight" src="cs-dashboard-mocks/prd-mock-01-exec-flow.png" /></p>
+<hr />
+<h2>2. First principles: what the business must answer</h2>
+<table>
+<thead>
+<tr>
+<th>Fundamental question</th>
+<th>Why it matters</th>
+<th>Primary surface in UI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>How big is the CS book right now?</strong></td>
+<td>Baseline for planning</td>
+<td>Company KPI strip — Active Accounts + revenue streams</td>
+</tr>
+<tr>
+<td><strong>Are we growing or shrinking vs last month?</strong></td>
+<td>Executive pulse</td>
+<td>MoM deltas on every KPI + optional summary band</td>
+</tr>
+<tr>
+<td><strong>Who owns outcomes?</strong></td>
+<td>Accountability</td>
+<td>Deal Owner table (ranking, totals, MoM)</td>
+</tr>
+<tr>
+<td><strong>Which accounts moved under an owner?</strong></td>
+<td>Coaching / rescue</td>
+<td>Owner drawer — per-account rows</td>
+</tr>
+<tr>
+<td><strong>Why did MRR move?</strong></td>
+<td>Actionability</td>
+<td>Driver columns + change reason (Metabase)</td>
+</tr>
+<tr>
+<td><strong>What is happening on one strategic account?</strong></td>
+<td>Deep dive without re-filtering the whole world</td>
+<td>Account Spotlight</td>
+</tr>
+</tbody>
+</table>
+<p>If a proposed UI element does not map to one of these questions, it is <strong>out of scope</strong> for v1 unless promoted via amendment.</p>
+<p><strong>Visual — first-principles map (six questions → surfaces)</strong></p>
+<p><img alt="Six business questions mapped to dashboard intent" src="cs-dashboard-mocks/prd-mock-02-first-principles.png" /></p>
+<hr />
+<h2>3. Information architecture (complete tree)</h2>
+<p>Every subsection below is <strong>intentional</strong>; names are stable for engineering and video narration.</p>
+<pre><code>Customer Success Overview (route / tab)
+│
+├── A. App chrome (persistent)
+│   ├── A1. Brand / sidebar navigation
+│   └── A2. Tab: Customer Success Overview | Metrics Overview (existing)
+│
+├── B. Global filter bar (sticky below header)
+│   ├── B1. Account ID — search / typeahead (optional: debounced)
+│   ├── B2. Deal Owner — single-select from fixed list + “All”
+│   ├── B3. Enterprise / Mid Market — single-select + “All”
+│   ├── B4. Month — January | February | … (extensible)
+│   └── B5. Apply — commits filter state to all dependent Metabase calls
+│
+├── C. Company snapshot (section)
+│   ├── C1. Section title — e.g. “Company snapshot — {Month} {Year} (vs {Prior month})”
+│   ├── C2. KPI strip (six tiles, single row on desktop; wrap on small screens)
+│   │   ├── C2a. Total Active Accounts (+ MoM where defined)
+│   │   ├── C2b. Contract revenue — Platform fee (+ MoM)
+│   │   ├── C2c. Contract revenue — Bot (+ MoM)
+│   │   ├── C2d. Contract revenue — Agent (+ MoM)
+│   │   ├── C2e. Contract revenue — Outbound (+ MoM)
+│   │   └── C2f. Contract revenue — Voice (+ MoM) [feature-flagged until Metabase card exists]
+│   └── C3. Optional: “Net movement” one-liner (if Metabase exposes aggregate bridge)
+│
+├── D. Deal owner performance (section)
+│   ├── D1. Section title + short helper text (“Click a row to see accounts”)
+│   ├── D2. Data table — sortable columns (min: Owner, Accounts, Enterprise count, Mid-Market count, Total MRR or CS revenue, MoM %)
+│   └── D3. Row interaction — click opens **Owner detail drawer** (D4)
+│
+├── E. Owner detail drawer (overlay; not a separate route in v1)
+│   ├── E1. Header — Owner name; total MRR (or defined headline metric); MoM vs prior month
+│   ├── E2. Sub-table — one row per account: Account ID, Account name (if available), MRR change, % , primary driver, truncated reason
+│   ├── E3. Row action — “View in Account Spotlight” (sets Spotlight + scrolls)
+│   └── E4. Close — returns focus to table; selection state may persist for video/deep link
+│
+├── F. Account Spotlight (section; same page, below D)
+│   ├── F1. Section title + helper (“Deep dive on one account”)
+│   ├── F2. Search — Account ID input + submit (and optional recent accounts)
+│   ├── F3. Detail card — headline MRR, prior month, MoM %, trend label
+│   ├── F4. Driver breakdown — platform / bot / agent / outbound / voice (as data allows)
+│   ├── F5. Change reason — full text from Metabase
+│   └── F6. Empty / error / loading states (explicit copy in Section 8)
+│
+└── G. Footer / meta (optional v1)
+    └── G1. Data freshness string if Metabase returns `updated_at` or build time
+</code></pre>
+<p><strong>Visual — IA tree (sections A–G)</strong></p>
+<p><img alt="Information architecture tree A through G" src="cs-dashboard-mocks/prd-mock-03-ia-tree.png" /></p>
+<hr />
+<h2>4. Product decisions (previously ambiguous — now locked)</h2>
+<p>These remove “loose ends” for engineering and script writing.</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Decision</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MoM definition</strong></td>
+<td><strong>Calendar month vs immediate prior month</strong> in the same year: e.g. February vs January. <strong>January</strong> compares to <strong>December of the prior year</strong>.</td>
+<td>Aligns with finance month close; implement in Metabase SQL.</td>
+</tr>
+<tr>
+<td><strong>Global Account ID vs Account Spotlight</strong></td>
+<td><strong>Linked default:</strong> When <strong>B1 Account ID</strong> is non-empty <strong>after Apply</strong>, <strong>Account Spotlight (F)</strong> automatically loads that account’s detail (same Metabase query as manual search). When <strong>B1 is empty</strong>, Spotlight is <strong>independent</strong> (user can explore any account without narrowing global KPIs). If user clears B1, Spotlight <strong>retains last loaded account</strong> until user clears Spotlight explicitly.</td>
+<td>One mental model: filter = “whole dashboard lens”; Spotlight when no filter = “sidecar deep dive.”</td>
+</tr>
+<tr>
+<td><strong>Conflict: user types different ID in Spotlight while B1 is set</strong></td>
+<td>On Spotlight <strong>Submit</strong>, show <strong>inline warning</strong>: “Global filter is set to {id}. Replace global filter?” <strong>Actions:</strong> [Use for spotlight only] (temporary override for F only) or [Update global filter] (sets B1 and re-Apply).</td>
+<td>Prevents silent inconsistency.</td>
+</tr>
+<tr>
+<td><strong>Voice revenue tile</strong></td>
+<td>Behind <strong><code>NEXT_PUBLIC_VOICE_REVENUE_ENABLED</code></strong> (or server env). <strong>Off:</strong> tile hidden. <strong>On:</strong> requires <code>METRICS_CONFIG</code> card ID.</td>
+<td>Ship UI before analytics finalizes card.</td>
+</tr>
+<tr>
+<td><strong>Outbound in summary</strong></td>
+<td>If summary card omits outbound, <strong>continue</strong> using dedicated Metabase card for outbound tile (existing pattern).</td>
+<td>Data accuracy over single-query convenience.</td>
+</tr>
+<tr>
+<td><strong>URL / sharing</strong></td>
+<td>Support <code>?month=&amp;deal_owner=&amp;account_id=</code> for <strong>filter bar</strong>; <code>?spotlight=</code> optional for Account Spotlight account id. Document in README.</td>
+<td>Shareable executive links.</td>
+</tr>
+<tr>
+<td><strong>Accessibility</strong></td>
+<td>MoM <strong>must</strong> include text: “Up 4.2%” not only green color.</td>
+<td>WCAG-aligned.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Visual — Spotlight vs global filter conflict (Section 4, conflict row)</strong></p>
+<p>When the user submits a different Account ID in Account Spotlight while <strong>B1</strong> is set, this modal pattern applies.</p>
+<p><img alt="Conflict modal: Use for spotlight only vs Update global filter" src="cs-dashboard-mocks/prd-mock-04-conflict-modal.png" /></p>
+<hr />
+<h2>5. Personas &amp; primary jobs</h2>
+<table>
+<thead>
+<tr>
+<th>Persona</th>
+<th>Job</th>
+<th>Success in this dashboard</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CS leadership</strong></td>
+<td>See book health and trend</td>
+<td>C + MoM at a glance</td>
+</tr>
+<tr>
+<td><strong>RevOps / Finance</strong></td>
+<td>Reconcile segments and month</td>
+<td>B filters + C consistency</td>
+</tr>
+<tr>
+<td><strong>Deal owner (manager)</strong></td>
+<td>See team and accounts</td>
+<td>D + E</td>
+</tr>
+<tr>
+<td><strong>Account manager</strong></td>
+<td>Explain one customer</td>
+<td>F</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Visual — persona → section mapping</strong></p>
+<p>Personas align to IA sections <strong>C–F</strong> as in the table above (leadership → C; RevOps → B+C; deal owner → D+E; account manager → F).</p>
+<hr />
+<h2>6. User journeys (acceptance-level)</h2>
+<h3>6.1 Journey A — Executive pulse (60 seconds)</h3>
+<ol>
+<li>Land on Customer Success Overview.  </li>
+<li>See <strong>B</strong> with defaults (e.g. Month = latest available, others All).  </li>
+<li>See <strong>C</strong> KPIs populate with <strong>MoM</strong> labels.  </li>
+<li><strong>Done</strong> when user can state “up/down” for the book without scrolling.</li>
+</ol>
+<h3>6.2 Journey B — Owner accountability</h3>
+<ol>
+<li>User scans <strong>D</strong>, sorts by MoM or MRR.  </li>
+<li>Clicks one owner → <strong>E</strong> opens.  </li>
+<li>Reads <strong>E2</strong> for worst/best accounts.  </li>
+<li><strong>Done</strong> when user identifies accounts to coach.</li>
+</ol>
+<h3>6.3 Journey C — Account narrative</h3>
+<ol>
+<li>User opens <strong>F</strong>, enters Account ID, submits.  </li>
+<li>Sees <strong>F3–F5</strong> with drivers and reason.  </li>
+<li><strong>Done</strong> when user can explain MRR movement to a customer or exec.</li>
+</ol>
+<h3>6.4 Journey D — Filter + spotlight linked</h3>
+<ol>
+<li>User sets <strong>B1</strong> Account ID, <strong>Apply</strong>.  </li>
+<li><strong>C</strong> and <strong>D</strong> reflect filtered universe; <strong>F</strong> auto-loads same account.  </li>
+<li><strong>Done</strong> when numbers match Metabase for that filter set.</li>
+</ol>
+<p><strong>Visual — four acceptance journeys (A–D)</strong></p>
+<p><img alt="User journeys: Executive pulse, Owner accountability, Account narrative, Linked filter + Spotlight" src="cs-dashboard-mocks/prd-mock-05-user-journeys.png" /></p>
+<hr />
+<h2>7. Functional requirements</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Requirement</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FR-01</td>
+<td>Filter state includes <code>account_id</code>, <code>deal_owner</code>, <code>enterprise_midmarket</code>, <code>month</code></td>
+<td>All documented Metabase tags receive values per <code>metrics-config</code></td>
+</tr>
+<tr>
+<td>FR-02</td>
+<td>Apply commits state; dependent queries refetch</td>
+<td>No stale mix of old/new filters</td>
+</tr>
+<tr>
+<td>FR-03</td>
+<td>Company KPI strip shows six streams + Active Accounts</td>
+<td>Layout per Section 3C</td>
+</tr>
+<tr>
+<td>FR-04</td>
+<td>Each KPI shows value + MoM fields when Metabase returns them</td>
+<td>Fallback: hide MoM chip if null</td>
+</tr>
+<tr>
+<td>FR-05</td>
+<td>Deal owner table sortable</td>
+<td>At least one numeric column sort</td>
+</tr>
+<tr>
+<td>FR-06</td>
+<td>Row click opens drawer <strong>E</strong> with correct owner</td>
+<td>Correct Metabase <code>deal_owner</code> param</td>
+</tr>
+<tr>
+<td>FR-07</td>
+<td>Drawer lists accounts with driver + reason columns</td>
+<td>Column map in analytics contract</td>
+</tr>
+<tr>
+<td>FR-08</td>
+<td>“View in Spotlight” from drawer</td>
+<td>Sets Spotlight account, scrolls to <strong>F</strong></td>
+</tr>
+<tr>
+<td>FR-09</td>
+<td>Account Spotlight search loads Metabase detail</td>
+<td>Loading/error/empty states</td>
+</tr>
+<tr>
+<td>FR-10</td>
+<td>Linked behavior Section 4</td>
+<td>Automated tests or QA checklist</td>
+</tr>
+<tr>
+<td>FR-11</td>
+<td>Conflict flow Section 4</td>
+<td>Warning + two actions</td>
+</tr>
+<tr>
+<td>FR-12</td>
+<td>URL params sync optional</td>
+<td>Documented query keys</td>
+</tr>
+<tr>
+<td>FR-13</td>
+<td>Voice tile gated by env</td>
+<td>No runtime error if disabled</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Visual</strong> — See <strong>Section 11</strong> for UI mocks (C–F) and PRD diagrams; functional scope maps to tiles and tables shown there.</p>
+<hr />
+<h2>8. States &amp; copy (no ambiguous empty UX)</h2>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Surface</th>
+<th>User-facing copy (draft)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Loading</td>
+<td>C, D, E, F</td>
+<td>“Loading…” / skeletons</td>
+</tr>
+<tr>
+<td>No permission / API error</td>
+<td>Global</td>
+<td>“Unable to load metrics. Try again.”</td>
+</tr>
+<tr>
+<td>No data (valid filters)</td>
+<td>Table</td>
+<td>“No accounts match these filters.”</td>
+</tr>
+<tr>
+<td>Spotlight empty</td>
+<td>F</td>
+<td>“Enter an Account ID to see MRR, trend, and change drivers.”</td>
+</tr>
+<tr>
+<td>Spotlight not found</td>
+<td>F</td>
+<td>“No data for this account in the selected month.”</td>
+</tr>
+<tr>
+<td>MoM N/A</td>
+<td>KPI</td>
+<td>Omit chip or “—” with tooltip “Prior month unavailable”</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Visual</strong> — Loading and empty states apply to the same surfaces as <strong>Section 11.1</strong> (KPI strip, owner table, drawer, Spotlight).</p>
+<hr />
+<h2>9. Data &amp; Metabase contract</h2>
+<ul>
+<li><strong>Source of truth:</strong> Metabase questions; version card IDs in <code>lib/metrics-config.ts</code>.  </li>
+<li><strong>MoM:</strong> Computed in SQL per Section 4; app does not invent deltas except for display formatting.  </li>
+<li><strong>Granularity matrix:</strong></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Typical grain</th>
+<th>Tags</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C</td>
+<td>Company aggregate</td>
+<td>month, optional segment filters</td>
+</tr>
+<tr>
+<td>D</td>
+<td>Deal owner</td>
+<td>month, deal_owner?, enterprise?, account?</td>
+</tr>
+<tr>
+<td>E</td>
+<td>Account under owner</td>
+<td>deal_owner, month, …</td>
+</tr>
+<tr>
+<td>F</td>
+<td>Single account</td>
+<td>account_id, month</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Analytics deliverable:</strong> Named questions + template tags documented in repo README or <code>docs/metabase-contract.md</code> (recommended follow-up artifact).</li>
+</ul>
+<hr />
+<h2>10. Non-functional</h2>
+<ul>
+<li><strong>Performance:</strong> Initial meaningful paint &lt; 3s on office network; parallelize independent Metabase calls where possible.  </li>
+<li><strong>Security:</strong> No secrets in client; existing API route pattern.  </li>
+<li><strong>Telemetry (optional):</strong> Section expand, drawer open, spotlight submit (privacy-safe).</li>
+</ul>
+<hr />
+<h2>11. Static reference mocks (UI + PRD diagrams)</h2>
+<h3>11.1 Screen-level UI mocks (implementation reference)</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>IA</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cs-mock-01-company-overview.png</code></td>
+<td>B + C</td>
+<td>Global filter bar + company KPI strip</td>
+</tr>
+<tr>
+<td><code>cs-mock-02-deal-owner-drawer.png</code></td>
+<td>D + E</td>
+<td>Deal owner table + owner detail drawer</td>
+</tr>
+<tr>
+<td><code>cs-mock-03-account-spotlight.png</code></td>
+<td>F</td>
+<td>Account Spotlight deep dive</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Company overview — filters + KPI strip" src="cs-dashboard-mocks/cs-mock-01-company-overview.png" /></p>
+<p><img alt="Deal owner table + owner drawer" src="cs-dashboard-mocks/cs-mock-02-deal-owner-drawer.png" /></p>
+<p><img alt="Account Spotlight" src="cs-dashboard-mocks/cs-mock-03-account-spotlight.png" /></p>
+<h3>11.2 PRD diagram mocks (Sections 1–6 &amp; 12)</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Section</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prd-mock-01-exec-flow.png</code></td>
+<td>1</td>
+<td>Executive flow diagram</td>
+</tr>
+<tr>
+<td><code>prd-mock-02-first-principles.png</code></td>
+<td>2</td>
+<td>Six questions infographic</td>
+</tr>
+<tr>
+<td><code>prd-mock-03-ia-tree.png</code></td>
+<td>3</td>
+<td>IA tree A–G</td>
+</tr>
+<tr>
+<td><code>prd-mock-04-conflict-modal.png</code></td>
+<td>4</td>
+<td>Conflict UX</td>
+</tr>
+<tr>
+<td><code>prd-mock-05-user-journeys.png</code></td>
+<td>6</td>
+<td>Journeys A–D storyboard</td>
+</tr>
+<tr>
+<td><code>prd-mock-06-video-storyboard.png</code></td>
+<td>12</td>
+<td>Nine-scene video grid</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>12. Single explainer video (specification)</h2>
+<p><strong>Deliverable:</strong> One <strong>MP4</strong> (or hosted link) between <strong>90 and 120 seconds</strong>, <strong>16:9</strong>, <strong>1080p minimum</strong>, voiceover + on-screen labels. <strong>This repository does not ship a rendered video file</strong>; Design / Comms produces it using this shot list.</p>
+<p><strong>Tone:</strong> Calm, executive, no jargon beyond “month over month” and “deal owner.”</p>
+<p><strong>Music:</strong> Optional, low under voice; not required.</p>
+<p><strong>Visual — nine-scene storyboard (maps to table 12.1)</strong></p>
+<p><img alt="Single explainer video: 9 scenes from hook to close" src="cs-dashboard-mocks/prd-mock-06-video-storyboard.png" /></p>
+<h3>12.1 Video structure (one continuous flow)</h3>
+<table>
+<thead>
+<tr>
+<th>Scene</th>
+<th>Duration (s)</th>
+<th>Visual</th>
+<th>Voiceover (guide script)</th>
+<th>On-screen text</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1. Hook</strong></td>
+<td>0–8</td>
+<td>LimeChat product frame; dashboard tab highlighted</td>
+<td>“This is the Customer Success Executive view—one place to see revenue health, ownership, and account-level change.”</td>
+<td>Title: <strong>Customer Success Overview</strong></td>
+</tr>
+<tr>
+<td><strong>2. Filters</strong></td>
+<td>8–22</td>
+<td>Cursor highlights B1–B5; user changes Month; clicks Apply</td>
+<td>“Start with filters: account, deal owner, segment, and month. Apply runs the whole story.”</td>
+<td>Labels: <strong>Filters</strong></td>
+</tr>
+<tr>
+<td><strong>3. Company snapshot</strong></td>
+<td>22–42</td>
+<td>Pan across C2a–C2f; MoM chips animate in</td>
+<td>“Here is the company snapshot—active accounts and every major revenue line, each with month-over-month movement.”</td>
+<td><strong>Company snapshot</strong></td>
+</tr>
+<tr>
+<td><strong>4. Deal owners</strong></td>
+<td>42–58</td>
+<td>Scroll to D; highlight column headers; sort</td>
+<td>“See which deal owners carry the book and how their portfolio moved.”</td>
+<td><strong>Deal owner performance</strong></td>
+</tr>
+<tr>
+<td><strong>5. Drawer</strong></td>
+<td>58–78</td>
+<td>Click row; E slides in; highlight E1 then E2</td>
+<td>“Click an owner to open the detail drawer—total MRR for that owner, then every account underneath with the driver of change.”</td>
+<td><strong>Owner detail</strong></td>
+</tr>
+<tr>
+<td><strong>6. To Spotlight</strong></td>
+<td>78–92</td>
+<td>Click “View in Account Spotlight” or account row; scroll to F</td>
+<td>“From here, jump straight to Account Spotlight—a dedicated readout for one account.”</td>
+<td><strong>Account Spotlight</strong></td>
+</tr>
+<tr>
+<td><strong>7. Spotlight detail</strong></td>
+<td>92–108</td>
+<td>F3–F5 visible; driver chips</td>
+<td>“MRR, prior month, the percent change, what drove it—platform, bot, agent, outbound, voice—and the written reason.”</td>
+<td><strong>Drivers · Reason</strong></td>
+</tr>
+<tr>
+<td><strong>8. Linked filter</strong></td>
+<td>108–118</td>
+<td>Set B1 Account ID, Apply; F auto-loads</td>
+<td>“When you filter by account globally, Spotlight stays in sync—same account, full context.”</td>
+<td><strong>Filters ↔ Spotlight</strong></td>
+</tr>
+<tr>
+<td><strong>9. Close</strong></td>
+<td>118–120</td>
+<td>Fade to logo</td>
+<td>“Customer Success Overview—track the book, the owners, and every account story.”</td>
+<td><strong>LimeChat</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Total:</strong> ~120s (trim scenes 3 or 7 by 5s each if a strict 90s cut is required).</p>
+<h3>12.2 Motion design (for editor / motion designer)</h3>
+<ul>
+<li><strong>Transitions:</strong> 200–250ms ease-out; no elastic easing.  </li>
+<li><strong>Scene 3:</strong> KPI tiles stagger 50ms; MoM chips fade after values count (optional 300ms).  </li>
+<li><strong>Scene 5:</strong> Drawer slide from right; backdrop 40% black.  </li>
+<li><strong>Scene 6:</strong> Scroll uses smooth scroll; optional 200ms highlight pulse on <strong>F</strong> container.  </li>
+<li><strong>Lower-thirds:</strong> Single font family; green accent matches app sidebar.</li>
+</ul>
+<h3>12.3 Acceptance criteria (video)</h3>
+<ul>
+<li>[ ] All sections <strong>A–F</strong> appear in order; none skipped.  </li>
+<li>[ ] Narration matches locked decisions (Section 4), especially <strong>Spotlight ↔ global filter</strong>.  </li>
+<li>[ ] No promise of features not in PRD (e.g. mobile app, real-time).  </li>
+<li>[ ] Captions file (SRT) delivered for accessibility.</li>
+</ul>
+<hr />
+<h2>13. Success metrics (product)</h2>
+<ul>
+<li>Time to answer “Are we up or down MoM?” &lt; <strong>30s</strong> for new user (usability test).  </li>
+<li><strong>≥80%</strong> of pilot users locate Account Spotlight without prompt after watching video once.</li>
+</ul>
+<hr />
+<h2>14. Risks &amp; mitigations</h2>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Metabase latency</td>
+<td>Skeletons, parallel fetch, cache policy per API route</td>
+</tr>
+<tr>
+<td>Incomplete MoM in SQL</td>
+<td>FR-04 fallback; analytics backlog</td>
+</tr>
+<tr>
+<td>Filter complexity</td>
+<td>Section 4 conflict UX; user testing on <strong>F</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>15. Glossary</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MoM</strong></td>
+<td>Month-over-month vs prior calendar month per Section 4</td>
+</tr>
+<tr>
+<td><strong>Deal owner</strong></td>
+<td>Hubspot / internal owner field; list is curated in UI</td>
+</tr>
+<tr>
+<td><strong>Driver</strong></td>
+<td>Primary attributed revenue component for MRR change</td>
+</tr>
+<tr>
+<td><strong>Account Spotlight</strong></td>
+<td>Section F; single-account narrative</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>16. Appendix: explainer asset checklist for Comms</h2>
+<ul>
+<li>[ ] Final screen recording or high-res export from staging  </li>
+<li>[ ] Voiceover WAV + SRT  </li>
+<li>[ ] Cover thumbnail (16:9)  </li>
+<li>[ ] Upload target (Loom / Drive / internal wiki) linked from README optional</li>
+</ul>
+<hr />
+<h2>17. PDF export</h2>
+<ul>
+<li><strong>Built PDF:</strong> <a href="PRD-customer-success-executive-dashboard.pdf"><code>PRD-customer-success-executive-dashboard.pdf</code></a> (generated from this Markdown; images load from <code>cs-dashboard-mocks/</code>.)</li>
+<li><strong>Regenerate:</strong> from repo root, run: <code>python3 docs/render-prd-pdf.py</code> (requires <strong>Google Chrome</strong> for headless print; also writes <code>PRD-customer-success-executive-dashboard.html</code>).</li>
+<li><strong>Mermaid:</strong> flowcharts in this doc render as monospace fallbacks in PDF; use the live Markdown preview in an editor that supports Mermaid for diagrams.</li>
+</ul>
+<hr />
+<p><em>End of PRD v1.1</em></p>
+</body>
+</html>
